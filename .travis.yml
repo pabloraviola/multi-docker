@@ -1,0 +1,35 @@
+sudo: required
+services:
+  - docker
+
+before_install:
+  - docker build -t praviola/react-test -f ./client/Dockerfile.dev ./client
+
+script:
+  - docker run praviola/react-test npm test -- --coverage
+
+after_success:
+  - docker build -t praviola/multi-client ./client
+  - docker build -t praviola/multi-nginx ./nginx
+  - docker build -t praviola/multi-server ./server
+  - docker build -t praviola/multi-worker ./worker
+  #Log in to the docker CLI
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_ID" --password-stdin #envirnonment variables on travis CI
+  #Take those images and push them to docker hub
+  - docker push praviola/multi-client
+  - docker push praviola/multi-nginx
+  - docker push praviola/multi-server
+  - docker push praviola/multi-worker
+
+deploy:
+  provider: elasticbeanstalk
+  region: "us-west-2" #region in which elasticbeanstalk app was created
+  app: "multi-docker" #name of the elasticbeanstalk app
+  env: "MultiDocker-env" #name of the environment in which the elasticbeanstalk app is running
+  bucket_name: "elasticbeanstalk-us-west-2-306476627547" #name of the bucket assigned to app
+  bucket_path: "docker"
+  on:
+    branch: master #Deploy only when changes has been pushed to branch "master"
+  access_key_id: $AWS_ACCESS_KEY #Keys provided when creating an IAM user in AWS, and then placed as environment variables on Travis CI
+  secret_access_key:
+    secure: "AWS_SECRET_KEY"
